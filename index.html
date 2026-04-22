@@ -1,0 +1,2537 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moncey Commune - Gestion Agent</title>
+    
+    <!-- Librairies Externes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #2c3e50; --secondary: #34495e; --accent: #00b894; --warning: #fdcb6e; --danger: #d63031;
+            --bg: #f1f2f6; --white: #ffffff; --radius: 12px; --shadow: 0 4px 20px rgba(0,0,0,0.05);
+            --surface: #ffffff;
+            --text-main: #2d3436;
+            --text-sec: #636e72;
+            --chat-bg: #e5ddd5;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; overflow: hidden; color: var(--text-main); }
+        
+        /* LOGIN SCREEN */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, var(--primary), #1a252f);
+            display: flex; justify-content: center; align-items: center; z-index: 2000;
+        }
+        .login-card {
+            background: var(--white); padding: 40px; border-radius: var(--radius);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.2); width: 100%; max-width: 400px; text-align: center;
+        }
+        .login-card input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #dfe6e9; border-radius: 8px; box-sizing: border-box; outline: none; transition: 0.3s; }
+        .login-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 184, 148, 0.1); }
+        .login-card button { width: 100%; padding: 12px; margin-top: 20px; font-size: 1rem; cursor: pointer; border-radius: 8px; font-weight: 600; }
+        
+        /* APP LAYOUT */
+        #app-container { display: none; width: 100%; height: 100%; }
+        
+        .sidebar { width: 260px; background: var(--primary); color: var(--white); display: flex; flex-direction: column; flex-shrink: 0; box-shadow: 4px 0 10px rgba(0,0,0,0.05); overflow-y: auto; z-index: 900; }
+        .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        
+        /* Nav */
+        .nav-item { padding: 16px 24px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; opacity: 0.7; font-weight: 500; letter-spacing: 0.3px; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); opacity: 1; border-left: 4px solid var(--accent); }
+        .logo { padding: 24px; font-weight: 700; font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; }
+        
+        /* Header */
+        header { height: 70px; background: var(--white); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); z-index: 800; position: relative; }
+        .mobile-toggle { display: none; font-size: 1.2rem; cursor: pointer; color: var(--text-sec); }
+        
+        /* NOTIFICATIONS PANEL */
+        .notif-btn { position: relative; cursor: pointer; font-size: 1.4rem; color: var(--text-sec); transition: 0.2s; }
+        .notif-btn:hover { color: var(--primary); }
+        .notif-dot { position: absolute; top:-2px; right:-2px; width: 10px; height: 10px; background: var(--danger); border-radius: 50%; display: none; animation: pulse 2s infinite; }
+        .notif-dot.active { display: block; }
+        @keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(214, 48, 49, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(214, 48, 49, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(214, 48, 49, 0); } }
+        
+        .notif-panel { position: fixed; top: 70px; right: 0; width: 350px; height: calc(100vh - 70px); background: white; box-shadow: -5px 0 20px rgba(0,0,0,0.1); z-index: 1500; transform: translateX(100%); transition: transform 0.3s ease-in-out; display: flex; flex-direction: column; }
+        .notif-panel.open { transform: translateX(0); }
+        .notif-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fafafa; font-weight: 700; color: var(--primary); }
+        .notif-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .notif-item { padding: 12px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 8px; cursor: pointer; transition: 0.2s; display: flex; gap: 10px; align-items: start; }
+        .notif-item:hover { background: #f9f9f9; border-color: var(--accent); }
+        .notif-icon { font-size: 1.2rem; color: var(--text-sec); margin-top: 2px; }
+        .notif-item.type-message .notif-icon { color: var(--accent); }
+        .notif-item.type-obs .notif-icon { color: var(--warning); }
+        .notif-content h5 { margin: 0 0 3px 0; font-size: 0.95rem; color: var(--text-main); }
+        .notif-content p { margin: 0; font-size: 0.8rem; color: var(--text-sec); }
+        .notif-content span { display: block; font-size: 0.7rem; color: #999; margin-top: 4px; }
+        .notif-footer { padding: 15px; border-top: 1px solid #eee; text-align: center; }
+        .notif-empty { text-align: center; color: var(--text-sec); margin-top: 50px; }
+
+        /* Content */
+        .content { flex: 1; overflow-y: auto; padding: 30px; display: none; height: 100%; position: relative; }
+        .content.active { display: block; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Components */
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-light { background: #f1f2f6; color: var(--text-main); }
+        .btn-light:hover { background: #dfe6e9; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+        .btn-block { width: 100%; }
+        
+        .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 25px; margin-bottom: 25px; border: 1px solid rgba(0,0,0,0.02); }
+        
+        /* Map */
+        #map { height: calc(100vh - 140px); width: 100%; border-radius: var(--radius); min-height: 400px; position: relative; }
+        .legend { 
+            position: absolute; bottom: 30px; right: 30px; background: white; padding: 15px; z-index: 500; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            display: none; 
+        }
+        #map.active .legend { display: block; }
+
+        /* Agenda */
+        .calendar-controls { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; }
+        .cal-day { background: var(--white); min-height: 110px; padding: 10px; border-radius: 8px; border:1px solid #eee; transition: 0.2s; position: relative; }
+        .cal-day:hover { border-color: var(--accent); background: #f0fdfa; }
+        .cal-day.drag-over { border: 2px dashed var(--accent); background: #e6fffa; }
+        .cal-day.today { background: #e0f7fa; border-color: #4dd0e1; }
+        
+        .task-dot { font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; color: white; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; font-weight: 500; user-select: none; background: #b2bec3; }
+        .task-dot.status-done { background: #00b894; }
+        .task-dot.status-mayor { background: #fdcb6e; color: #2d3436; }
+        .task-dot:active { cursor: grabbing; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 2000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal { background: var(--white); width: 95%; max-width: 900px; border-radius: 16px; padding: 0; max-height: 90vh; overflow: hidden; box-shadow: 0 25px 50px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
+        .modal-header { padding: 20px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fafafa; }
+        .modal-title { margin: 0; font-size: 1.25rem; color: var(--primary); font-weight: 700; }
+        .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; transition: 0.2s; }
+        .close-modal:hover { color: var(--danger); }
+        .modal-body { padding: 30px; overflow-y: auto; }
+        
+        /* Forms */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.85rem; color: var(--text-sec); }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #dfe6e9; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; transition: 0.2s; font-family: inherit; }
+        .form-control:focus { border-color: var(--accent); outline: none; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .checkbox-item { background: #f1f2f6; padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .checkbox-item input { width: auto; }
+
+        /* PARC (ADVANCED FLEET) */
+        .alert-banner { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; border-left: 5px solid #ffeeba; }
+        .alert-banner.show { display: flex; align-items: center; gap: 10px; }
+
+        .equip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }
+        
+        .equip-card { 
+            background: white; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); 
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); position: relative; border: 1px solid transparent; display: flex; flex-direction: column;
+        }
+        .equip-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-color: var(--accent); }
+        .equip-card.maintenance { border: 1px solid #ffeaa7; }
+        .equip-card.broken { border: 2px solid var(--danger); background: #fff5f5; }
+        
+        .equip-header { background: #f8f9fa; padding: 15px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #eee; }
+        .equip-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .equip-body { padding: 20px; flex: 1; display: flex; flex-direction: column; }
+        .equip-title { font-weight: 700; font-size: 1.1rem; color: var(--primary); margin: 0 0 5px 0; }
+        .equip-subtitle { font-size: 0.85rem; color: var(--text-sec); margin-bottom: 15px; font-family: monospace; }
+        
+        .equip-metrics { display: flex; gap: 10px; margin-bottom: 15px; }
+        .metric { background: #f1f2f6; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; color: var(--text-sec); flex: 1; text-align: center; }
+        
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; align-self: flex-start; margin-bottom: 15px; }
+        .status-ok { background: #e6fffa; color: #00b894; }
+        .status-maint { background: #fff7e6; color: #fdcb6e; }
+        .status-broken { background: #ffe6e6; color: #d63031; }
+
+        .equip-actions { margin-top: auto; display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .equip-actions button { width: 100%; }
+
+        /* DISCUSSION & OBSERVATIONS */
+        .disc-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .disc-tab { cursor: pointer; padding: 8px 16px; border-radius: 20px; font-weight: 600; color: var(--text-sec); background: #f1f2f6; transition: 0.2s; }
+        .disc-tab.active { background: var(--primary); color: white; }
+        
+        /* Chat UI */
+        .chat-container { display: flex; flex-direction: column; height: 600px; background: white; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; border: 1px solid #eee; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; background: #f9f9f9; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 12px; position: relative; font-size: 0.9rem; line-height: 1.4; }
+        .message.mine { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 2px; }
+        .message.others { align-self: flex-start; background: white; border: 1px solid #eee; color: var(--text-main); border-bottom-left-radius: 2px; }
+        .msg-sender { font-size: 0.7rem; opacity: 0.8; margin-bottom: 2px; display: block; font-weight: 700; }
+        .msg-time { font-size: 0.65rem; opacity: 0.7; text-align: right; margin-top: 4px; display: block; }
+        .chat-input-area { padding: 15px; background: white; border-top: 1px solid #eee; display: flex; gap: 10px; }
+        
+        /* Observations UI */
+        .obs-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .obs-card { background: white; border-radius: 10px; padding: 15px; box-shadow: var(--shadow); border-left: 5px solid #b2bec3; display: flex; flex-direction: column; gap: 10px; }
+        .obs-card.status-demande { border-left-color: var(--warning); }
+        .obs-card.status-cours { border-left-color: var(--accent); }
+        .obs-card.status-traite { border-left-color: var(--primary); opacity: 0.7; }
+        
+        .obs-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .obs-status { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; background: #eee; }
+        .obs-img-thumb { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 10px; cursor: pointer; }
+        .obs-meta { font-size: 0.8rem; color: var(--text-sec); display: flex; gap: 10px; align-items: center; }
+
+        /* Detailed Modal */
+        .detail-tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+        .detail-tab { padding: 10px 20px; cursor: pointer; font-weight: 600; color: var(--text-sec); position: relative; }
+        .detail-tab.active { color: var(--accent); }
+        .detail-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px; background: var(--accent); }
+        
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .detail-item label { font-size: 0.75rem; color: var(--text-sec); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 4px; }
+        .detail-item span { font-weight: 600; color: var(--primary); font-size: 0.95rem; }
+
+        .event-list-item { border-left: 3px solid #eee; padding-left: 15px; margin-bottom: 20px; position: relative; background: #fafafa; padding: 10px; border-radius: 4px; }
+        .event-list-item.type-vidange { border-left-color: var(--accent); }
+        .event-list-item.type-panne { border-left-color: var(--danger); }
+        
+        .event-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .event-title { font-weight: 700; font-size: 1rem; }
+        .event-date { font-size: 0.8rem; color: #999; }
+        .event-details { font-size: 0.9rem; color: #555; line-height: 1.5; }
+        .event-meta { margin-top: 5px; font-size: 0.8rem; background: #f8f9fa; padding: 5px; border-radius: 4px; display: inline-block; }
+        .event-actions { margin-top: 10px; display: flex; gap: 10px; justify-content: flex-end; }
+
+        .doc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .doc-item { border: 1px solid #eee; border-radius: 8px; padding: 10px; text-align: center; }
+        .doc-item i { font-size: 2rem; color: var(--secondary); margin-bottom: 10px; display: block; }
+        .doc-name { font-size: 0.8rem; font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { position: absolute; height: 100%; transform: translateX(-100%); transition: 0.3s; z-index: 999; }
+            .sidebar.open { transform: translateX(0); }
+            .mobile-toggle { display: block; }
+            .cal-grid { grid-template-columns: 1fr; }
+            .form-grid { grid-template-columns: 1fr; }
+            .detail-tabs { overflow-x: auto; }
+            .chat-container { height: 400px; }
+            .notif-panel { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ECRAN DE CONNEXION -->
+    <div id="login-screen">
+        <div class="login-card">
+            <h2 style="color: var(--primary); margin-bottom: 5px;">Moncey Commune</h2>
+            <p style="color: #b2bec3; margin-bottom: 30px;">Espace Agent</p>
+            <input type="text" id="login-user" placeholder="Identifiant (ex: admin)">
+            <input type="password" id="login-pass" placeholder="Mot de passe">
+            <button class="btn btn-primary" onclick="handleLogin()">Se connecter</button>
+            <p id="login-error" style="color: var(--danger); font-size: 0.8rem; margin-top: 15px; display: none;">Identifiants incorrects</p>
+        </div>
+    </div>
+
+    <!-- APPLICATION PRINCIPALE -->
+    <div id="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="logo"><i class="fas fa-city" style="color:var(--accent)"></i> Moncey</div>
+            <div class="nav-item active" onclick="showTab('map')"><i class="fas fa-map"></i> Cartographie</div>
+            <div class="nav-item" onclick="showTab('agenda')"><i class="far fa-calendar-alt"></i> Agenda</div>
+            <div class="nav-item" onclick="showTab('parc')"><i class="fas fa-tractor"></i> Parc Matériel</div>
+            <div class="nav-item" onclick="showTab('discussion')"><i class="fas fa-comments"></i> Discussion</div>
+            <div class="nav-item" onclick="showTab('history')"><i class="fas fa-history"></i> Historique</div>
+            <div class="nav-item" onclick="showTab('settings')"><i class="fas fa-sliders-h"></i> Paramètres</div>
+            
+            <div style="margin-top: auto; padding: 25px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; opacity: 0.7;">
+                Connecté : <span id="current-user-display" style="font-weight: 600; opacity: 1;">...</span>
+                <div style="margin-top: 10px; cursor: pointer; color: #ff7675;" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</div>
+            </div>
+        </div>
+
+        <!-- Main -->
+        <div class="main">
+            <header>
+                <div class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></div>
+                <h3 id="page-title" style="margin:0; font-weight: 700; color: var(--primary);">Cartographie</h3>
+                <div class="notif-btn" onclick="toggleNotifPanel()">
+                    <i class="far fa-bell"></i>
+                    <span class="notif-dot" id="notif-dot"></span>
+                </div>
+            </header>
+
+            <!-- NOTIFICATIONS PANEL -->
+            <div class="notif-panel" id="notif-panel">
+                <div class="notif-header">
+                    Notifications
+                    <i class="fas fa-times" style="cursor:pointer;" onclick="toggleNotifPanel()"></i>
+                </div>
+                <div class="notif-list" id="notif-list">
+                    <!-- Notifications injected by JS -->
+                </div>
+                <div class="notif-footer">
+                    <button class="btn btn-light btn-sm" onclick="markAllRead()">Tout marquer comme lu</button>
+                </div>
+            </div>
+
+            <!-- TAB 1: CARTOGRAPHIE -->
+            <div id="map" class="content active"></div>
+            <div class="legend">
+                <small style="font-weight: bold; text-transform: uppercase; font-size: 0.7rem; color: #636e72;">Légende</small><br>
+                <span style="color:#00b894; font-size: 1.2rem;">●</span> <span style="font-size: 0.9rem;">Tondue</span><br>
+                <span style="color:#d63031; font-size: 1.2rem;">●</span> <span style="font-size: 0.9rem;">À tondre</span><br>
+                <span style="color:#0984e3; font-size: 1.2rem;">_</span> <span style="font-size: 0.9rem;">Trottoir / Zone spécifique</span>
+            </div>
+
+            <!-- TAB 2: AGENDA -->
+            <div id="agenda" class="content">
+                <div class="card">
+                    <div class="calendar-controls">
+                        <button class="btn btn-light" onclick="changeMonth(-1)"><i class="fas fa-chevron-left"></i></button>
+                        <h3 id="month-display" style="margin:0; font-weight: 600;">Septembre 2023</h3>
+                        <button class="btn btn-light" onclick="changeMonth(1)"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;">
+                        <button class="btn btn-primary" onclick="openTaskModal()"><i class="fas fa-plus"></i> Nouvelle Tâche</button>
+                        <button class="btn btn-success" onclick="openEndOfDayModal()"><i class="fas fa-check-circle"></i> Fin de journée</button>
+                    </div>
+                    <p style="text-align:center; font-size:0.8rem; color:#999; margin-bottom:10px;">
+                        <span style="display:inline-block; width:10px; height:10px; background:#b2bec3; border-radius:50%; margin-right:5px;"></span>À faire
+                        <span style="display:inline-block; width:10px; height:10px; background:#fdcb6e; border-radius:50%; margin-right:5px; margin-left:10px;"></span>Demande Maire
+                        <span style="display:inline-block; width:10px; height:10px; background:#00b894; border-radius:50%; margin-right:5px; margin-left:10px;"></span>Fait (Vert)
+                    </p>
+                    <div class="cal-grid" id="calendar-grid"></div>
+                </div>
+                <div class="card" style="border-left: 4px solid var(--warning); background: #fffdf5;">
+                    <h4 style="margin-top:0; color: #e67e22;"><i class="fas fa-star"></i> Demandes du Maire (à assigner)</h4>
+                    <div id="mayor-requests" style="color: #636e72; min-height: 50px; border: 2px dashed #eee; padding: 10px; border-radius: 8px;">
+                        Chargement...
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: PARC (FLEET MANAGEMENT) -->
+            <div id="parc" class="content">
+                <div id="fleet-alerts" class="alert-banner">
+                    <i class="fas fa-bell" style="font-size: 1.2rem;"></i>
+                    <div>
+                        <strong>Alertes Maintenance :</strong>
+                        <ul id="alert-list" style="margin: 5px 0 0 20px; padding: 0;"></ul>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Parc Matériel</h2>
+                    <button class="btn btn-primary" onclick="openAddEquipModal()"><i class="fas fa-plus"></i> Nouveau Matériel</button>
+                </div>
+
+                <div class="equip-grid" id="equip-list"></div>
+            </div>
+
+            <!-- TAB 4: DISCUSSION & OBSERVATIONS -->
+            <div id="discussion" class="content">
+                <div class="disc-tabs">
+                    <div class="disc-tab active" onclick="switchDiscTab('chat', this)"><i class="fas fa-comment-dots"></i> Chat Équipe</div>
+                    <div class="disc-tab" onclick="switchDiscTab('obs', this)"><i class="fas fa-clipboard-list"></i> Signalements</div>
+                </div>
+
+                <!-- CHAT VIEW -->
+                <div id="view-chat">
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages">
+                            <!-- Messages injected by JS -->
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" class="form-control" placeholder="Écrivez un message..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+                            <button class="btn btn-primary" onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OBSERVATIONS VIEW -->
+                <div id="view-obs" style="display:none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <button class="btn btn-light btn-sm" onclick="toggleObsHistory()"><i class="fas fa-history"></i> Voir l'historique (Traité)</button>
+                        <button class="btn btn-danger" onclick="openObsModal()"><i class="fas fa-exclamation-triangle"></i> Nouveau Signalement</button>
+                    </div>
+
+                    <!-- ACTIVE OBS LIST -->
+                    <div id="obs-list-container" class="obs-list">
+                        <!-- Cards injected by JS -->
+                    </div>
+
+                    <!-- HISTORY OBS LIST (Hidden by default) -->
+                    <div id="obs-history-container" class="obs-list" style="display:none; margin-top: 20px; border-top: 2px dashed #ddd; padding-top: 20px;">
+                        <h3 style="grid-column: 1/-1; margin-bottom:15px; color:var(--text-sec);">Historique des signalements traités</h3>
+                        <!-- History Cards injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: HISTORIQUE -->
+            <div id="history" class="content">
+                <div class="card">
+                    <h3 style="margin-top:0;">Export Rapport Général</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="btn btn-light" onclick="exportPDF('week')">Semaine</button>
+                        <button class="btn btn-light" onclick="exportPDF('month')">Mois</button>
+                        <button class="btn btn-light" onclick="exportPDF('year')">Année complète</button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f8f9fa; text-align: left; color: var(--text-sec);">
+                                    <th style="padding: 12px; font-weight: 600;">Date</th>
+                                    <th style="padding: 12px; font-weight: 600;">Action</th>
+                                    <th style="padding: 12px; font-weight: 600;">Employé</th>
+                                    <th style="padding: 12px; font-weight: 600;">Détails</th>
+                                    <th style="padding: 12px; font-weight: 600;">Suppr.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card" style="border: 2px solid var(--accent);">
+                    <h3 style="color: var(--accent); margin-top:0;"><i class="fas fa-school"></i> Historique Spécifique : École</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px;">
+                        <button class="btn btn-success" onclick="exportSchoolPDF('week')"><i class="fas fa-file-pdf"></i> Export Semaine</button>
+                        <button class="btn btn-success" onclick="exportSchoolPDF('month')"><i class="fas fa-file-pdf"></i> Export Mois</button>
+                        <button class="btn btn-success" onclick="exportSchoolPDF('year')"><i class="fas fa-file-pdf"></i> Export Année complète</button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #e6fffa; text-align: left; color: var(--text-sec);">
+                                    <th style="padding: 12px; font-weight: 600;">Date</th>
+                                    <th style="padding: 12px; font-weight: 600;">Action</th>
+                                    <th style="padding: 12px; font-weight: 600;">Employé</th>
+                                    <th style="padding: 12px; font-weight: 600;">Obs</th>
+                                    <th style="padding: 12px; font-weight: 600;">Suppr.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="school-history-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 6: PARAMÈTRES -->
+            <div id="settings" class="content">
+                <div class="card">
+                    <h3>Mon Compte</h3>
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Changer mon mot de passe</label>
+                        <input type="password" id="new-pass" class="form-control" placeholder="Nouveau mot de passe">
+                    </div>
+                    <button class="btn btn-primary" onclick="changePassword()">Mettre à jour</button>
+                </div>
+
+                <div class="card" id="admin-panel" style="display:none; border: 1px solid var(--primary);">
+                    <h3 style="color: var(--primary);">Administration (Maire)</h3>
+                    <hr style="margin: 10px 0; border:0; border-top:1px solid #eee;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Nom d'utilisateur</label>
+                            <input type="text" id="add-user-name" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Mot de passe</label>
+                            <input type="text" id="add-user-pass" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Rôle</label>
+                        <select id="add-user-role" class="form-control">
+                            <option value="agent">Agent</option>
+                            <option value="admin">Maire (Admin)</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success" onclick="addUser()">Créer l'utilisateur</button>
+                    
+                    <h4 style="margin-top:25px;">Utilisateurs existants</h4>
+                    <ul id="users-list" style="list-style: none; padding: 0;"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Titre</h3>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <script>
+        /* CONFIGURATION FIREBASE */
+        const firebaseConfig = {
+            apiKey: "AIzaSyC6V_JIY5jj3nlB9pK9uOiPGYbzoCi4zAk",
+            authDomain: "moncey-commune.firebaseapp.com",
+            databaseURL: "https://moncey-commune-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "moncey-commune",
+            storageBucket: "moncey-commune.firebasestorage.app",
+            messagingSenderId: "35389675947",
+            appId: "1:35389675947:web:e9267adc235f919dd71aee"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        /* ÉTAT GLOBAL */
+        let map, drawnItems;
+        let currentDate = new Date();
+        let currentUser = null;
+        let currentUserData = null;
+        let appInitialized = false;
+        let currentEquipId = null; 
+        let allZones = {};
+        let currentEditingEquipId = null;
+        let currentEditingTaskId = null;
+        let currentObsId = null;
+        let lastSeenNotifs = 0;
+
+        /* --- AUTHENTIFICATION --- */
+        function initAuth() {
+            db.ref('users').once('value', snap => {
+                if(!snap.exists()) {
+                    const defaults = {
+                        'admin': { name: 'Maire', pass: 'admin123', role: 'admin' },
+                        'theo': { name: 'Théo', pass: 'theo123', role: 'agent' },
+                        'mateo': { name: 'Matéo', pass: 'mateo123', role: 'agent' }
+                    };
+                    db.ref('users').set(defaults);
+                }
+            });
+
+            const storedUser = localStorage.getItem('moncey_user');
+            if(storedUser) {
+                db.ref('users/'+storedUser).once('value', snap => {
+                    if(snap.exists()) {
+                        loginSuccess(storedUser, snap.val());
+                    } else {
+                        logout();
+                    }
+                });
+            }
+        }
+
+        function handleLogin() {
+            const userIn = document.getElementById('login-user').value.trim();
+            const passIn = document.getElementById('login-pass').value;
+            
+            db.ref('users/'+userIn).once('value', snap => {
+                const data = snap.val();
+                if(data && data.pass === passIn) {
+                    loginSuccess(userIn, data);
+                } else {
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            });
+        }
+
+        function loginSuccess(username, data) {
+            currentUser = username;
+            currentUserData = data;
+            localStorage.setItem('moncey_user', username);
+            
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'flex';
+            document.getElementById('current-user-display').innerText = data.name;
+
+            if(data.role === 'admin') {
+                document.getElementById('admin-panel').style.display = 'block';
+                loadUsersList();
+            }
+
+            startApp();
+        }
+
+        function logout() {
+            localStorage.removeItem('moncey_user');
+            location.reload();
+        }
+
+        /* --- INITIALISATION PRINCIPALE --- */
+        function startApp() {
+            if(appInitialized) return;
+            appInitialized = true;
+            
+            initMap();
+            renderCalendar();
+            loadEquip(); 
+            loadHistory();
+            loadSchoolHistory();
+            initDiscussion();
+            loadObservations();
+            initNotifications(); 
+
+            db.ref('zones').once('value', s => allZones = s.val() || {});
+
+            setTimeout(() => {
+                if(map) map.invalidateSize();
+            }, 500);
+        }
+
+        /* --- NAVIGATION --- */
+        function showTab(tabId) {
+            document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            
+            const navItems = document.querySelectorAll('.nav-item');
+            const tabs = ['map','agenda','parc','discussion','history','settings'];
+            const navIndex = tabs.indexOf(tabId);
+            if(navIndex >= 0) navItems[navIndex].classList.add('active');
+            
+            document.getElementById('page-title').innerText = navItems[navIndex].innerText;
+            
+            if(tabId === 'map' && map) {
+                setTimeout(() => map.invalidateSize(), 100);
+            }
+            document.getElementById('sidebar').classList.remove('open');
+        }
+
+        /* --- MODULE NOTIFICATIONS --- */
+        function initNotifications() {
+            // 1. Get Last Seen
+            db.ref('users/'+currentUser+'/lastSeen').once('value', snap => {
+                lastSeenNotifs = snap.val() || 0;
+            });
+
+            // 2. Listen for new Messages
+            db.ref('messages').limitToLast(1).on('child_added', snap => {
+                const msg = snap.val();
+                if(msg.timestamp > lastSeenNotifs && msg.sender !== currentUser) {
+                    showNotifDot();
+                }
+            });
+
+            // 3. Listen for new Observations
+            db.ref('observations').limitToLast(1).on('child_added', snap => {
+                const obs = snap.val();
+                if(obs.timestamp > lastSeenNotifs) {
+                    showNotifDot();
+                }
+            });
+        }
+
+        function showNotifDot() {
+            document.getElementById('notif-dot').classList.add('active');
+        }
+
+        function toggleNotifPanel() {
+            const panel = document.getElementById('notif-panel');
+            const isOpen = panel.classList.contains('open');
+            
+            if(isOpen) {
+                panel.classList.remove('open');
+            } else {
+                loadNotifList();
+                panel.classList.add('open');
+            }
+        }
+
+        function loadNotifList() {
+            const list = document.getElementById('notif-list');
+            list.innerHTML = '<div class="notif-empty">Chargement...</div>';
+            
+            // Fetch Messages
+            db.ref('messages').orderByChild('timestamp').startAt(lastSeenNotifs).limitToLast(20).once('value', msgSnap => {
+                const msgs = msgSnap.val() || {};
+                // Fetch Observations
+                db.ref('observations').orderByChild('timestamp').startAt(lastSeenNotifs).limitToLast(20).once('value', obsSnap => {
+                    const obs = obsSnap.val() || {};
+                    
+                    const allItems = [];
+                    
+                    Object.keys(msgs).forEach(k => {
+                        const m = msgs[k];
+                        allItems.push({ type: 'message', timestamp: m.timestamp, text: m.text, user: m.senderName || m.sender, date: new Date(m.timestamp) });
+                    });
+
+                    Object.keys(obs).forEach(k => {
+                        const o = obs[k];
+                        allItems.push({ type: 'obs', timestamp: o.timestamp, text: `Nouveau signalement: ${o.location}`, user: o.userName, date: new Date(o.timestamp), id: k });
+                    });
+
+                    // Sort by timestamp desc
+                    allItems.sort((a, b) => b.timestamp - a.timestamp);
+
+                    if(allItems.length === 0) {
+                        list.innerHTML = '<div class="notif-empty">Aucune nouvelle notification.</div>';
+                        return;
+                    }
+
+                    let html = '';
+                    allItems.forEach(item => {
+                        const iconClass = item.type === 'message' ? 'fa-comment-dots' : 'fa-exclamation-circle';
+                        const typeClass = item.type === 'message' ? 'type-message' : 'type-obs';
+                        
+                        html += `
+                            <div class="notif-item ${typeClass}" onclick="handleNotifClick('${item.type}', '${item.id || ''}')">
+                                <div class="notif-icon"><i class="fas ${iconClass}"></i></div>
+                                <div class="notif-content">
+                                    <h5>${item.type === 'message' ? 'Message' : 'Signalement'}</h5>
+                                    <p>${item.text}</p>
+                                    <span>${item.user} - ${item.date.toLocaleDateString()} ${item.date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = html;
+                });
+            });
+        }
+
+        function handleNotifClick(type, id) {
+            toggleNotifPanel();
+            if(type === 'message') {
+                showTab('discussion');
+                document.querySelector('.disc-tab').click(); 
+            } else {
+                showTab('discussion');
+                setTimeout(() => {
+                    document.querySelectorAll('.disc-tab')[1].click(); 
+                    setTimeout(() => {
+                        openObsModal(id);
+                    }, 200);
+                }, 100);
+            }
+        }
+
+        function markAllRead() {
+            const now = Date.now();
+            db.ref('users/'+currentUser+'/lastSeen').set(now);
+            lastSeenNotifs = now;
+            document.getElementById('notif-dot').classList.remove('active');
+            loadNotifList(); 
+        }
+
+        /* --- MODULE 1: CARTOGRAPHIE --- */
+        function initMap() {
+            map = L.map('map').setView([46.603354, 1.888334], 6); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+            
+            const drawControl = new L.Control.Draw({
+                edit: { featureGroup: drawnItems },
+                draw: { 
+                    polygon: true, 
+                    rectangle: true, 
+                    circle: true, 
+                    polyline: true, 
+                    marker: false, 
+                    circlemarker: false 
+                }
+            });
+            map.addControl(drawControl);
+
+            map.on(L.Draw.Event.CREATED, function (e) {
+                const layer = e.layer;
+                drawnItems.addLayer(layer);
+                openZoneModal(layer);
+            });
+            
+            loadZones();
+        }
+
+        function loadZones() {
+            db.ref('zones').once('value', snapshot => {
+                drawnItems.clearLayers();
+                const zones = snapshot.val();
+                let bounds = L.latLngBounds();
+                let hasZones = false;
+
+                if(zones) {
+                    Object.keys(zones).forEach(key => {
+                        const z = zones[key];
+                        let layer;
+                        if(z.type === 'Circle') {
+                            layer = L.circle(z.center, {radius: z.radius});
+                            bounds.extend(z.center);
+                        } else if (z.type === 'Polyline') {
+                            layer = L.polyline(z.latlngs);
+                            if(layer.getBounds()) bounds.extend(layer.getBounds());
+                        } else {
+                            if(z.latlngs && z.latlngs.length > 0 && Array.isArray(z.latlngs[0])) {
+                                layer = L.polygon(z.latlngs); 
+                            } else {
+                                layer = L.polygon([z.latlngs]);
+                            }
+                            if(layer.getBounds()) bounds.extend(layer.getBounds());
+                        }
+                        hasZones = true;
+                        
+                        const status = checkZoneStatus(z.lastMowed, z.intervalDays);
+                        let color = '#0984e3'; 
+                        if(z.type !== 'Polyline') {
+                            color = status === 'mowed' ? '#00b894' : '#d63031';
+                        } else {
+                            color = status === 'mowed' ? '#00b894' : '#d63031';
+                        }
+                        
+                        layer.setStyle({color: color, fillColor: z.type==='Polyline'?'transparent':color, fillOpacity: 0.4, weight: 2});
+                        layer.bindPopup(`<div style="font-family:'Inter';"><b>${z.name}</b><br>Statut: <span style="color:${color}; font-weight:bold;">${z.type==='Polyline'?'Trottoir':(status === 'mowed' ? 'Tondue' : 'À tondre')}</span></div>`);
+                        layer.on('click', () => openZoneDetails(key, z));
+                        
+                        drawnItems.addLayer(layer);
+                    });
+
+                    if(hasZones && isValidBounds(bounds)) {
+                        setTimeout(() => map.fitBounds(bounds, { padding: [50, 50] }), 500);
+                    }
+                }
+            });
+        }
+
+        function isValidBounds(bounds) {
+            return bounds.isValid();
+        }
+
+        function checkZoneStatus(lastMowed, interval) {
+            if(!lastMowed) return 'needs_mow';
+            const last = new Date(lastMowed);
+            const next = new Date(last);
+            next.setDate(last.getDate() + (interval || 7));
+            return new Date() > next ? 'needs_mow' : 'mowed';
+        }
+
+        function openZoneModal(layer) {
+            document.getElementById('modal-title').innerText = "Nouvelle Zone";
+            document.getElementById('modal-body').innerHTML = `
+                <div class="form-group"><label>Nom de la zone</label><input id="z-name" class="form-control"></div>
+                <div class="form-group"><label>Type</label>
+                    <select id="z-type-select" class="form-control" onchange="toggleIntervalInput()">
+                        <option value="Polygon">Zone (Tonte)</option>
+                        <option value="Polyline">Trottoir / Trait</option>
+                    </select>
+                </div>
+                <div class="form-group" id="z-interval-group"><label>Récurrence (jours)</label><input type="number" id="z-interval" class="form-control" value="7"></div>
+                <button class="btn btn-primary" onclick="saveZone(null, '${layer instanceof L.Circle ? 'Circle' : (layer instanceof L.Polyline ? 'Polyline' : 'Polygon')}')">Enregistrer</button>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+            map.tempLayer = layer;
+        }
+
+        function toggleIntervalInput() {
+            const type = document.getElementById('z-type-select').value;
+            document.getElementById('z-interval-group').style.display = type === 'Polyline' ? 'none' : 'block';
+        }
+
+        function saveZone(id, type) {
+            const typeSelect = document.getElementById('z-type-select');
+            const finalType = typeSelect ? typeSelect.value : type;
+            
+            const name = document.getElementById('z-name').value;
+            const interval = parseInt(document.getElementById('z-interval').value);
+            if(!name) return alert("Nom requis");
+
+            let zoneData = {
+                name: name,
+                type: finalType,
+                intervalDays: interval,
+                lastMowed: null,
+                history: {},
+                equipment: {} 
+            };
+
+            if(finalType === 'Circle') {
+                zoneData.center = map.tempLayer.getLatLng();
+                zoneData.radius = map.tempLayer.getRadius();
+            } else if (finalType === 'Polyline') {
+                zoneData.latlngs = map.tempLayer.getLatLngs();
+            } else {
+                zoneData.latlngs = map.tempLayer.getLatLngs();
+            }
+
+            if(id) {
+                db.ref('zones/'+id).update(zoneData);
+            } else {
+                db.ref('zones').push(zoneData);
+            }
+            closeModal();
+        }
+
+        function openZoneDetails(id, z) {
+            db.ref('equipment').once('value', equipSnap => {
+                const equipList = equipSnap.val() || {};
+                let checkboxesHtml = '';
+                Object.keys(equipList).forEach(k => {
+                    const isChecked = z.equipment && z.equipment[k] ? 'checked' : '';
+                    checkboxesHtml += `<label class="checkbox-item"><input type="checkbox" name="z-equip" value="${k}" ${isChecked}> ${equipList[k].name}</label>`;
+                });
+
+                const status = checkZoneStatus(z.lastMowed, z.intervalDays);
+                document.getElementById('modal-title').innerText = "Modifier : " + z.name;
+                
+                let historyHtml = Object.values(z.history || {}).map(h => `<li style="margin-bottom:5px; color:#636e72;">${h.date} par <b>${h.user}</b></li>`).join('');
+
+                document.getElementById('modal-body').innerHTML = `
+                    <div class="form-group"><label>Nom de la zone</label><input id="edit-z-name" class="form-control" value="${z.name}"></div>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Récurrence (jours)</label><input type="number" id="edit-z-interval" class="form-control" value="${z.intervalDays}" ${z.type==='Polyline'?'disabled':''}></div>
+                        <div class="form-group"><label>Dernière tonte</label><input type="date" id="edit-z-last" class="form-control" value="${z.lastMowed || ''}"></div>
+                    </div>
+                    
+                    <h4>Matériel à utiliser</h4>
+                    <div class="checkbox-group">${checkboxesHtml || 'Aucun matériel dans le parc.'}</div>
+
+                    <hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">
+                    <button class="btn btn-success" onclick="updateZone('${id}')" style="width:100%">Mettre à jour</button>
+                    
+                    <hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">
+                    <h4>Historique</h4>
+                    <ul style="list-style: none; padding:0;">${historyHtml || 'Aucun historique'}</ul>
+                `;
+                document.getElementById('modal-overlay').style.display = 'flex';
+            });
+        }
+
+        function updateZone(id) {
+            const name = document.getElementById('edit-z-name').value;
+            const interval = parseInt(document.getElementById('edit-z-interval').value);
+            const lastMowed = document.getElementById('edit-z-last').value;
+            
+            const checkboxes = document.querySelectorAll('input[name="z-equip"]:checked');
+            const equipMap = {};
+            checkboxes.forEach(cb => {
+                equipMap[cb.value] = true;
+            });
+
+            db.ref('zones/'+id).update({
+                name: name,
+                intervalDays: interval,
+                lastMowed: lastMowed || null,
+                equipment: equipMap
+            }).then(() => {
+                closeModal();
+                loadZones(); 
+            });
+        }
+
+
+        /* --- MODULE 2: AGENDA --- */
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            
+            document.getElementById('month-display').innerText = currentDate.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+
+            const y = currentDate.getFullYear();
+            const m = currentDate.getMonth();
+            const firstDay = new Date(y, m, 1).getDay();
+            const daysInMonth = new Date(y, m+1, 0).getDate();
+
+            ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'].forEach(d => {
+                grid.innerHTML += `<div style="text-align:center; font-weight:bold; padding:10px; color:#b2bec3;">${d}</div>`;
+            });
+
+            for(let i=0; i<firstDay; i++) grid.innerHTML += `<div></div>`;
+
+            for(let i=1; i<=daysInMonth; i++) {
+                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const isToday = dateStr === new Date().toISOString().split('T')[0];
+                
+                const cell = document.createElement('div');
+                cell.className = `cal-day ${isToday ? 'today' : ''}`;
+                cell.dataset.date = dateStr;
+                
+                cell.ondragover = function(ev) {
+                    ev.preventDefault();
+                    this.classList.add('drag-over');
+                };
+                cell.ondragleave = function(ev) {
+                    this.classList.remove('drag-over');
+                };
+                cell.ondrop = function(ev) {
+                    ev.preventDefault();
+                    this.classList.remove('drag-over');
+                    const taskId = ev.dataTransfer.getData("text/plain");
+                    moveTaskToDate(taskId, dateStr);
+                };
+
+                cell.innerHTML = `<div style="font-weight:bold; color:var(--primary);">${i}</div>`;
+
+                db.ref('tasks').orderByChild('date').equalTo(dateStr).once('value', snap => {
+                    snap.forEach(childSnap => {
+                        const t = childSnap.val();
+                        t.id = childSnap.key; 
+                        
+                        const div = document.createElement('div');
+                        div.className = 'task-dot';
+                        
+                        if(t.status === 'done') {
+                            div.classList.add('status-done');
+                        } else if(t.assignedBy === 'admin') {
+                            div.classList.add('status-mayor');
+                        }
+
+                        div.draggable = true;
+                        div.dataset.taskId = t.id;
+                        
+                        div.innerText = t.title;
+                        div.onclick = (e) => { e.stopPropagation(); showTaskDetails(t); };
+                        
+                        div.ondragstart = function(ev) {
+                            ev.dataTransfer.setData("text/plain", t.id);
+                            ev.dataTransfer.effectAllowed = "move";
+                        };
+
+                        cell.appendChild(div);
+                    });
+                });
+
+                grid.appendChild(cell);
+            }
+            
+            loadMayorRequests();
+        }
+
+        function loadMayorRequests() {
+            const list = document.getElementById('mayor-requests');
+            db.ref('tasks').orderByChild('assignedBy').equalTo('admin').once('value', snap => {
+                const tasks = snap.val() || {};
+                const poolTasks = [];
+                
+                snap.forEach(child => {
+                    const t = child.val();
+                    t.id = child.key;
+                    if(t.status === 'pool') poolTasks.push(t);
+                });
+                
+                if(poolTasks.length === 0) {
+                    list.innerHTML = "<small style='display:block; text-align:center; padding:10px;'>Aucune demande en attente.</small>";
+                    return;
+                }
+
+                const html = poolTasks.map(t => 
+                    `<div class="task-dot status-mayor" draggable="true" style="margin-bottom:5px; cursor:grab;" 
+                          data-task-id="${t.id}"
+                          ondragstart="ev.dataTransfer.setData('text/plain', '${t.id}')"
+                          onclick="showTaskDetails(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                        <b>${t.title}</b> - ${t.desc || 'Pas de détails'}
+                     </div>`
+                ).join('');
+                list.innerHTML = html;
+            });
+        }
+
+        function moveTaskToDate(taskId, dateStr) {
+            if(!taskId) return;
+            
+            db.ref('tasks/'+taskId).update({
+                date: dateStr,
+                status: 'todo', 
+                assignedTo: currentUser
+            }, (err) => {
+                if(!err) renderCalendar();
+            });
+        }
+
+        function changeMonth(delta) {
+            currentDate.setMonth(currentDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function openTaskModal(taskId = null) {
+            currentEditingTaskId = taskId;
+            let t = null;
+
+            const renderForm = (isMaire) => {
+                let zonesOptions = `<option value="">-- Autre Tâche --</option>`;
+                if(!isMaire) {
+                     db.ref('zones').once('value', s => {
+                        const z = s.val() || {};
+                        Object.keys(z).forEach(k => zonesOptions += `<option value="${k}">${z[k].name}</option>`);
+                        finishForm(zonesOptions, isMaire);
+                    });
+                } else {
+                    finishForm(zonesOptions, isMaire);
+                }
+            };
+
+            const finishForm = (zonesOptions, isMaire) => {
+                const dateInputHtml = isMaire ? 
+                    `<div class="form-group"><label>Date (Optionnel)</label><input type="date" id="t-date" class="form-control" value="${t ? t.date : ''}"></div>` :
+                    `<div class="form-group"><label>Date</label><input type="date" id="t-date" class="form-control" value="${t ? t.date : new Date().toISOString().split('T')[0]}"></div>`;
+
+                const assignHtml = isMaire || (t && currentUser === t.assignedTo) ? 
+                    `<div class="form-group"><label>Assigner à</label>
+                     <select id="t-to" class="form-control">
+                        <option value="">-- Non assigné --</option>
+                        <option value="theo">Théo</option><option value="mateo">Matéo</option>
+                        <option value="admin">Maire</option>
+                     </select></div>` : '';
+
+                document.getElementById('modal-title').innerText = taskId ? "Modifier Tâche" : "Créer Tâche";
+                document.getElementById('modal-body').innerHTML = `
+                    <input type="hidden" id="t-id" value="${taskId || ''}">
+                    <div class="form-group"><label>Type/Zone</label><select id="t-zone" class="form-control" onchange="toggleLocInput()">${zonesOptions}</select></div>
+                    <div class="form-group" id="t-loc-group" style="display:none;"><label>Localisation</label><input id="t-loc" class="form-control" value="${t ? (t.location || '') : ''}"></div>
+                    <div class="form-group"><label>Titre</label><input id="t-title" class="form-control" value="${t ? t.title : ''}"></div>
+                    <div class="form-group"><label>Description</label><textarea id="t-desc" class="form-control" rows="2">${t ? (t.desc || '') : ''}</textarea></div>
+                    ${dateInputHtml}
+                    ${assignHtml}
+                    <button class="btn btn-primary" onclick="saveTask()">${taskId ? 'Mettre à jour' : 'Créer'}</button>
+                `;
+                document.getElementById('modal-overlay').style.display = 'flex';
+                
+                if(t) {
+                    if(t.zoneId) document.getElementById('t-zone').value = t.zoneId;
+                    if(t.assignedTo) document.getElementById('t-to').value = t.assignedTo;
+                    if(t.zoneId || t.location) toggleLocInput();
+                }
+            };
+
+            if(taskId) {
+                db.ref('tasks/'+taskId).once('value', s => {
+                    t = s.val();
+                    renderForm(currentUserData.role === 'admin');
+                });
+            } else {
+                renderForm(currentUserData.role === 'admin');
+            }
+        }
+
+        function toggleLocInput() {
+            const val = document.getElementById('t-zone').value;
+            document.getElementById('t-loc-group').style.display = val === "" ? 'block' : 'none';
+        }
+
+        function saveTask() {
+            const id = document.getElementById('t-id').value;
+            const zoneId = document.getElementById('t-zone').value;
+            const title = document.getElementById('t-title').value || (zoneId ? "Tonte" : "Tâche");
+            const dateVal = document.getElementById('t-date').value;
+            const desc = document.getElementById('t-desc').value;
+            const location = document.getElementById('t-loc').value;
+            const assignedTo = document.getElementById('t-to').value || currentUser;
+            
+            const isMaire = currentUserData.role === 'admin';
+            let finalStatus = 'todo';
+            let finalDate = dateVal || new Date().toISOString().split('T')[0];
+
+            if(!id && isMaire && !dateVal) {
+                finalStatus = 'pool';
+                finalDate = null; 
+            }
+
+            const task = {
+                title: title,
+                date: finalDate,
+                desc: desc, 
+                type: zoneId ? 'mowing' : 'other',
+                zoneId: zoneId || null,
+                location: location || null,
+                status: finalStatus,
+                assignedBy: currentUser, 
+                assignedTo: assignedTo,
+                startTime: null,
+                endTime: null,
+                observations: ""
+            };
+
+            const promise = id ? db.ref('tasks/'+id).update(task) : db.ref('tasks').push(task);
+            
+            promise.then(() => {
+                closeModal();
+                renderCalendar();
+            });
+        }
+
+        function openEndOfDayModal() {
+            const today = new Date().toISOString().split('T')[0];
+            db.ref('tasks').orderByChild('date').equalTo(today).once('value', snap => {
+                const tasks = snap.val() || {};
+                let list = '';
+                snap.forEach(child => {
+                    const key = child.key;
+                    const t = child.val();
+                    if(t.status === 'done') return;
+                    list += `<div style="padding:15px; border:1px solid #eee; margin-bottom:10px; border-radius:8px;">
+                        <b>${t.title}</b><br>
+                        <small>Debut: <input type="time" id="s-${key}"> Fin: <input type="time" id="e-${key}"></small><br>
+                        <small>Obs: <input type="text" id="o-${key}" placeholder="Observations..." class="form-control" style="margin-top:5px;"></small><br>
+                        <button class="btn btn-success" style="margin-top:10px; width:100%" onclick="closeTaskDay('${key}')">Valider la tâche</button>
+                    </div>`;
+                });
+
+                document.getElementById('modal-title').innerText = "Fin de journée : " + today;
+                document.getElementById('modal-body').innerHTML = list || "<p>Aucune tâche en cours.</p>";
+                document.getElementById('modal-overlay').style.display = 'flex';
+            });
+        }
+
+        function closeTaskDay(key) {
+            const start = document.getElementById(`s-${key}`).value;
+            const end = document.getElementById(`e-${key}`).value;
+            const obs = document.getElementById(`o-${key}`).value;
+            
+            if(!start || !end) return alert("Merci de renseigner heures début et fin.");
+
+            db.ref('tasks/'+key).once('value', s => {
+                const t = s.val();
+                const duration = calculateDuration(start, end);
+                
+                const historyEntry = {
+                    task: t.title,
+                    location: t.location || (t.zoneId ? `Zone ID: ${t.zoneId}` : '-'),
+                    date: t.date,
+                    startTime: start,
+                    endTime: end,
+                    duration: duration,
+                    observations: obs,
+                    user: t.assignedTo
+                };
+
+                db.ref('history').push(historyEntry).then(historySnap => {
+                    const historyId = historySnap.key;
+
+                    const updates = {
+                        status: 'done',
+                        startTime: start,
+                        endTime: end,
+                        observations: obs,
+                        linkedHistoryId: historyId
+                    };
+
+                    db.ref('tasks/'+key).update(updates).then(() => {
+                        const taskTitle = t.title.toLowerCase();
+                        if(taskTitle.includes('école') || taskTitle.includes('ecole') || taskTitle.includes('school')) {
+                            db.ref('history_ecole').push(historyEntry);
+                        }
+
+                        if(t.zoneId) {
+                            db.ref('zones/'+t.zoneId+'/lastMowed').set(t.date);
+                            db.ref('zones/'+t.zoneId+'/history').push({ date: t.date, user: currentUser });
+                            loadZones(); 
+                        }
+                        
+                        closeModal();
+                        renderCalendar();
+                    });
+                });
+            });
+        }
+
+        function calculateDuration(start, end) {
+            const [h1, m1] = start.split(':').map(Number);
+            const [h2, m2] = end.split(':').map(Number);
+            return (h2 * 60 + m2) - (h1 * 60 + m1);
+        }
+
+        function showTaskDetails(t) {
+            document.getElementById('modal-title').innerText = t.title;
+            let html = `
+                <p><b>Description:</b> ${t.desc || 'Pas de description'}</p>
+                <p>Assigné à: <b>${t.assignedTo || 'Non assigné'}</b></p>
+                <p>Statut: ${t.status === 'done' ? 'Terminé' : (t.status === 'pool' ? 'En attente' : 'À faire')}</p>
+            `;
+            
+            if(t.status === 'done') {
+                html += `<p>Heure: ${t.startTime} - ${t.endTime}</p><p>Obs: ${t.observations || '-'}</p>`;
+            } else {
+                 html += `<div style="margin-top:20px; display:flex; gap:10px;">
+                    <button class="btn btn-light" onclick="openTaskModal('${t.id}')"><i class="fas fa-edit"></i> Modifier</button>
+                    <button class="btn btn-danger" onclick="deleteTask('${t.id}')">Supprimer</button>
+                 </div>`;
+            }
+            
+            document.getElementById('modal-body').innerHTML = html;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function deleteTask(taskId) {
+            if(confirm("Supprimer cette tâche ? Cela supprimera aussi l'historique associé si la tâche est validée.")) {
+                db.ref('tasks/'+taskId).once('value', snap => {
+                    const t = snap.val();
+                    if(t && t.linkedHistoryId) {
+                        db.ref('history/'+t.linkedHistoryId).remove();
+                    } 
+                    db.ref('tasks/'+taskId).remove();
+                    closeModal();
+                    renderCalendar();
+                });
+            }
+        }
+
+        /* --- MODULE 3: PARC (FLEET MANAGEMENT) --- */
+        function loadEquip() {
+            db.ref('equipment').on('value', snap => {
+                const eq = snap.val() || {};
+                const div = document.getElementById('equip-list');
+                div.innerHTML = '';
+                
+                let alerts = 0;
+                const alertListHTML = [];
+
+                Object.keys(eq).forEach(k => {
+                    const e = eq[k];
+                    let isAlert = false;
+                    const events = e.events || {};
+                    const eventKeys = Object.keys(events).sort().reverse();
+                    
+                    if(e.currentMileage && eventKeys.length > 0) {
+                        const lastEvent = events[eventKeys[0]];
+                        if(lastEvent.type === 'Vidange' || lastEvent.type === 'Révision') {
+                            const lastMileage = parseInt(lastEvent.mileageAtIntervention) || 0;
+                            const threshold = (e.unitType === 'h') ? 200 : 10000; 
+                            
+                            if(e.currentMileage >= lastMileage + threshold) {
+                                isAlert = true;
+                                alerts++;
+                                alertListHTML.push(`<li>${e.name} : Maintenance nécessaire</li>`);
+                            }
+                        }
+                    } 
+
+                    const status = e.status || 'ok';
+                    let statusClass = 'status-ok';
+                    let statusLabel = 'En service';
+                    if(status === 'maintenance') { statusClass = 'status-maint'; statusLabel = 'En maintenance'; }
+                    if(status === 'broken') { statusClass = 'status-broken'; statusLabel = 'HS'; }
+
+                    const unitLabel = e.unitType === 'h' ? 'h' : 'km';
+
+                    const card = document.createElement('div');
+                    card.className = `equip-card ${status === 'broken' ? 'broken' : (status === 'maintenance' ? 'maintenance' : '')}`;
+                    card.innerHTML = `
+                        <div class="equip-header">
+                            <img src="${e.photo || 'https://via.placeholder.com/150'}" class="equip-img">
+                            <div>
+                                <h3 class="equip-title">${e.name}</h3>
+                                <div class="equip-subtitle">${e.plate || 'N/A'}</div>
+                            </div>
+                        </div>
+                        <div class="equip-body">
+                            <span class="status-badge ${statusClass}">${statusLabel}</span>
+                            <div class="equip-metrics">
+                                <div class="metric"><i class="fas fa-tachometer-alt"></i> ${e.currentMileage || 0} ${unitLabel}</div>
+                                <div class="metric"><i class="fas fa-map-marker-alt"></i> ${e.location || 'Dépôt'}</div>
+                            </div>
+                            <div class="equip-actions">
+                                <button class="btn btn-primary" onclick="openEquipDetails('${k}')">Voir la fiche</button>
+                            ${isAlert ? '<div style="text-align:center; color:var(--danger); font-size:0.75rem; margin-top:5px;"><i class="fas fa-exclamation-triangle"></i> Maintenance requise</div>' : ''}
+                            <button class="btn btn-light btn-sm" onclick="changeQuickStatus('${k}')">Changer Statut</button>
+                            <button class="btn btn-light btn-sm" onclick="openAddEquipModal('${k}')"><i class="fas fa-edit"></i> Modifier</button>
+                            <button class="btn btn-light btn-sm" onclick="deleteEquip('${k}')"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                    div.appendChild(card);
+                });
+
+                const alertBanner = document.getElementById('fleet-alerts');
+                const alertUl = document.getElementById('alert-list');
+                if(alerts > 0) {
+                    alertBanner.classList.add('show');
+                    alertUl.innerHTML = alertListHTML.join('');
+                } else {
+                    alertBanner.classList.remove('show');
+                }
+            });
+        }
+
+        function openAddEquipModal(id = null) {
+            currentEditingEquipId = id;
+            let title = "Nouveau Matériel";
+            let data = {};
+            
+            if(id) {
+                db.ref('equipment/'+id).once('value', snap => {
+                    data = snap.val() || {};
+                    fillEquipForm(data, id);
+                });
+            } else {
+                fillEquipForm(data, null);
+            }
+        }
+
+        function fillEquipForm(data, id) {
+            if(id) document.getElementById('modal-title').innerText = "Modifier : " + data.name;
+            
+            const unitType = data.unitType || 'km';
+            
+            document.getElementById('modal-body').innerHTML = `
+                <input type="hidden" id="eq-id" value="${id || ''}">
+                <div class="form-grid">
+                    <div class="form-group full"><label>Nom du matériel</label><input id="eq-name" class="form-control" value="${data.name || ''}"></div>
+                    <div class="form-group"><label>Type</label>
+                        <select id="eq-type" class="form-control">
+                            <option value="Véhicule" ${data.type==='Véhicule'?'selected':''}>Véhicule</option>
+                            <option value="Engin" ${data.type==='Engin'?'selected':''}>Engin</option>
+                            <option value="Tondeuse" ${data.type==='Tondeuse'?'selected':''}>Tondeuse</option>
+                            <option value="Outil" ${data.type==='Outil'?'selected':''}>Outil</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Unité de mesure</label>
+                        <select id="eq-unit-type" class="form-control">
+                            <option value="km" ${unitType==='km'?'selected':''}>Kilomètres</option>
+                            <option value="h" ${unitType==='h'?'selected':''}>Heures</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Immatriculation / Inv</label><input id="eq-plate" class="form-control" value="${data.plate || ''}"></div>
+                    <div class="form-group"><label>Marque</label><input id="eq-brand" class="form-control" value="${data.brand || ''}"></div>
+                    <div class="form-group"><label>Modèle</label><input id="eq-model" class="form-control" value="${data.model || ''}"></div>
+                    <div class="form-group"><label>Année</label><input type="number" id="eq-year" class="form-control" value="${data.year || ''}"></div>
+                    <div class="form-group"><label>Photo URL</label><input id="eq-photo" class="form-control" value="${data.photo || 'https://via.placeholder.com/300'}"></div>
+                    <div class="form-group"><label>Localisation</label>
+                        <select id="eq-loc" class="form-control">
+                            <option value="Dépôt" ${data.location==='Dépôt'?'selected':''}>Dépôt</option>
+                            <option value="Atelier" ${data.location==='Atelier'?'selected':''}>Atelier</option>
+                            <option value="Extérieur" ${data.location==='Extérieur'?'selected':''}>Extérieur</option>
+                            <option value="Autre" ${data.location==='Autre'?'selected':''}>Autre</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <h4 style="margin-top:20px; border-bottom:1px solid #eee; padding-bottom:5px;">Caractéristiques Techniques</h4>
+                <div class="form-grid">
+                    <div class="form-group"><label>Carburant</label><input id="eq-fuel" class="form-control" placeholder="Diesel, Essence..." value="${data.fuel || ''}"></div>
+                    <div class="form-group"><label>Capacité Réservoir (L)</label><input type="number" id="eq-tank" class="form-control" value="${data.tankCap || ''}"></div>
+                    <div class="form-group"><label>Huile Moteur</label><input id="eq-oil-engine" class="form-control" value="${data.oilEngine || ''}"></div>
+                    <div class="form-group"><label>Huile Hydraulique</label><input id="eq-oil-hyd" class="form-control" value="${data.oilHyd || ''}"></div>
+                    <div class="form-group"><label>Filtres</label><input id="eq-filters" class="form-control" value="${data.filters || ''}"></div>
+                    <div class="form-group"><label>Pneus</label><input id="eq-tires" class="form-control" value="${data.tires || ''}"></div>
+                    <div class="form-group"><label>Compteur Actuel</label><input type="number" id="eq-mileage" class="form-control" value="${data.currentMileage || 0}"></div>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveEquipData()" style="margin-top:20px; width:100%;">Enregistrer</button>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function saveEquipData() {
+            const id = document.getElementById('eq-id').value; 
+            const name = document.getElementById('eq-name').value;
+            
+            if(!name || name.trim() === "") {
+                return alert("Le nom du matériel est obligatoire.");
+            }
+
+            const data = {
+                name: name,
+                type: document.getElementById('eq-type').value,
+                unitType: document.getElementById('eq-unit-type').value, 
+                plate: document.getElementById('eq-plate').value,
+                brand: document.getElementById('eq-brand').value,
+                model: document.getElementById('eq-model').value,
+                year: document.getElementById('eq-year').value,
+                photo: document.getElementById('eq-photo').value,
+                location: document.getElementById('eq-loc').value,
+                fuel: document.getElementById('eq-fuel').value,
+                tankCap: document.getElementById('eq-tank').value,
+                oilEngine: document.getElementById('eq-oil-engine').value,
+                oilHyd: document.getElementById('eq-oil-hyd').value,
+                filters: document.getElementById('eq-filters').value,
+                tires: document.getElementById('eq-tires').value,
+                currentMileage: document.getElementById('eq-mileage').value,
+            };
+
+            if(id) {
+                db.ref('equipment/'+id).update(data).then(() => closeModal());
+            } else {
+                data.status = 'ok';
+                data.events = {};
+                data.documents = {};
+                db.ref('equipment').push(data).then(() => closeModal());
+            }
+        }
+
+        function changeQuickStatus(id) {
+            document.getElementById('modal-title').innerText = "Changer le statut";
+            document.getElementById('modal-body').innerHTML = `
+                <div style="display:flex; gap:20px; justify-content:center;">
+                    <button class="btn btn-success" style="padding:20px;" onclick="updateStatus('${id}', 'ok')">En Service</button>
+                    <button class="btn btn-warning" style="padding:20px; color:#fff;" onclick="updateStatus('${id}', 'maintenance')">Maintenance</button>
+                    <button class="btn btn-danger" style="padding:20px;" onclick="updateStatus('${id}', 'broken')">HS</button>
+                </div>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function updateStatus(id, status) {
+            db.ref('equipment/'+id+'/status').set(status);
+            closeModal();
+        }
+
+        function openEquipDetails(id) {
+            currentEquipId = id;
+            db.ref('equipment/'+id).once('value', snap => {
+                const e = snap.val();
+                renderEquipDetailTabs(e, 'info');
+            });
+        }
+
+        function renderEquipDetailTabs(e, activeTab) {
+            const tabsHTML = `
+                <div class="detail-tabs">
+                    <div class="detail-tab ${activeTab==='info'?'active':''}" onclick="renderEquipDetailTabs(currentEquipData, 'info')">Infos Générales</div>
+                    <div class="detail-tab ${activeTab==='events'?'active':''}" onclick="renderEquipDetailTabs(currentEquipData, 'events')">Événements & Maintenance</div>
+                    <div class="detail-tab ${activeTab==='docs'?'active':''}" onclick="renderEquipDetailTabs(currentEquipData, 'docs')">Documents</div>
+                </div>
+            `;
+
+            let contentHTML = '';
+
+            if(activeTab === 'info') {
+                currentEquipData = e; 
+                const unit = e.unitType === 'h' ? 'h' : 'km';
+                
+                contentHTML = `
+                    <div class="detail-grid">
+                        <div class="detail-item"><label>Statut</label><span class="${e.status === 'ok' ? 'text-success' : 'text-danger'}">${e.status.toUpperCase()}</span></div>
+                        <div class="detail-item"><label>Compteur</label><span>${e.currentMileage || 0} ${unit}</span></div>
+                        <div class="detail-item"><label>Marque / Modèle</label><span>${e.brand} ${e.model || ''}</span></div>
+                        <div class="detail-item"><label>Immatriculation</label><span>${e.plate || 'N/A'}</span></div>
+                        <div class="detail-item"><label>Année</label><span>${e.year || 'N/A'}</span></div>
+                        <div class="detail-item"><label>Localisation</label><span>${e.location || 'N/A'}</span></div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="detail-item"><label>Carburant</label><span>${e.fuel || 'N/A'}</span></div>
+                        <div class="detail-item"><label>Huile Moteur</label><span>${e.oilEngine || 'N/A'}</span></div>
+                        <div class="detail-item"><label>Huile Hyd</label><span>${e.oilHyd || 'N/A'}</span></div>
+                        <div class="detail-item"><label>Pneus</label><span>${e.tires || 'N/A'}</span></div>
+                    </div>
+
+                    <div style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:20px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h4 style="margin:0;"><i class="fas fa-file-pdf"></i> Fiche Professionnelle</h4>
+                            <small>Imprimer une fiche complète (Infos + Historique)</small>
+                        </div>
+                        <button class="btn btn-primary" onclick="exportEquipProSheet('${currentEquipId}')"><i class="fas fa-print"></i> Générer PDF</button>
+                    </div>
+
+                    <div style="margin-top:20px; text-align:right;">
+                        <button class="btn btn-light" onclick="openAddEquipModal('${currentEquipId}')"><i class="fas fa-edit"></i> Modifier infos</button>
+                    </div>
+                `;
+            } else if (activeTab === 'events') {
+                const events = e.events || {};
+                const sortedKeys = Object.keys(events).sort().reverse();
+                
+                let listHTML = sortedKeys.length === 0 ? '<p>Aucun événement enregistré.</p>' : '';
+                
+                sortedKeys.forEach(k => {
+                    const ev = events[k];
+                    const typeClass = ev.type === 'Vidange' ? 'type-vidange' : (ev.type === 'Panne' ? 'type-panne' : '');
+                    listHTML += `
+                        <div class="event-list-item ${typeClass}">
+                            <div class="event-header">
+                                <span class="event-title">${ev.type} - ${ev.name}</span>
+                                <span class="event-date">${ev.date}</span>
+                            </div>
+                            <div class="event-details">
+                                ${ev.description ? `<p style="margin:5px 0;">${ev.description}</p>` : ''}
+                                ${ev.agent ? `<small>Par: ${ev.agent}</small>` : ''}
+                                ${ev.mileageAtIntervention ? `<span class="event-meta"><i class="fas fa-tachometer-alt"></i> ${ev.mileageAtIntervention} ${e.unitType==='h'?'h':'km'}</span>` : ''}
+                                ${ev.duration ? `<span class="event-meta"><i class="far fa-clock"></i> ${ev.startTime}-${ev.endTime} (${ev.duration} min)</span>` : ''}
+                            </div>
+                            <div class="event-actions">
+                                <button class="btn btn-sm btn-light" onclick='editEvent("${currentEquipId}", "${k}")'><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteEvent('${currentEquipId}', '${k}')"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                contentHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0;">Historique des interventions</h3>
+                        <button class="btn btn-success" onclick="openAddEventModal('${currentEquipId}')"><i class="fas fa-plus"></i> Nouvel Événement</button>
+                    </div>
+                    ${listHTML}
+                `;
+            } else if (activeTab === 'docs') {
+                const docs = e.documents || {};
+                let listHTML = '';
+                if(Object.keys(docs).length === 0) listHTML = '<p>Aucun document.</p>';
+                
+                Object.keys(docs).forEach(k => {
+                    const d = docs[k];
+                    listHTML += `
+                        <div class="doc-item">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            <span class="doc-name">${d.name}</span>
+                            <br><a href="${d.data}" download="${d.name}" style="font-size:0.8rem; color:var(--accent);">Télécharger</a>
+                            <button class="btn btn-danger btn-sm" onclick="deleteDoc('${currentEquipId}', '${k}')" style="margin-top:5px; padding:2px 5px;">Suppr.</button>
+                        </div>
+                    `;
+                });
+
+                contentHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h3 style="margin:0;">Documents</h3>
+                        <button class="btn btn-primary" onclick="openAddDocModal('${currentEquipId}')"><i class="fas fa-upload"></i> Ajouter</button>
+                    </div>
+                    <div class="doc-list">${listHTML}</div>
+                `;
+            }
+
+            document.getElementById('modal-title').innerText = e.name;
+            document.getElementById('modal-body').innerHTML = tabsHTML + `<div class="tab-content">${contentHTML}</div>`;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        /* --- GESTION ÉVÉNEMENTS --- */
+        let currentEventId = null;
+
+        function openAddEventModal(id) {
+            currentEventId = null;
+            db.ref('equipment/'+id).once('value', snap => {
+                const e = snap.val();
+                buildEventModal(e, null, id); // PASS ID HERE
+            });
+        }
+
+        function editEvent(id, eventId) {
+            currentEventId = eventId;
+            db.ref('equipment/'+id).once('value', snap => {
+                const e = snap.val();
+                const ev = e.events[eventId];
+                buildEventModal(e, ev, id); // PASS ID HERE TOO
+            });
+        }
+
+        function buildEventModal(e, ev, id) {
+            const title = ev ? "Modifier Événement" : "Nouvel Événement : " + e.name;
+            
+            const valName = ev ? ev.name : '';
+            const valType = ev ? ev.type : 'Vidange';
+            const valDate = ev ? ev.date : new Date().toISOString().split('T')[0];
+            const valStart = ev ? ev.startTime : '';
+            const valEnd = ev ? ev.endTime : '';
+            const valMileage = ev ? ev.mileageAtIntervention : (e.currentMileage || 0);
+            const valDesc = ev ? ev.description : '';
+            const valOilEng = ev ? ev.oilAdded.engine : '';
+            const valOilHyd = ev ? ev.oilAdded.hyd : '';
+
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerHTML = `
+                <input type="hidden" id="ev-edit-mode" value="${ev ? 'true' : 'false'}">
+                <div class="form-group"><label>Nom de l'événement</label>
+                    <input type="text" id="ev-name" class="form-control" placeholder="Ex: Vidange moteur" value="${valName}">
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>Type</label>
+                        <select id="ev-type" class="form-control">
+                            <option value="Vidange" ${valType==='Vidange'?'selected':''}>Vidange</option>
+                            <option value="Révision" ${valType==='Révision'?'selected':''}>Révision</option>
+                            <option value="Panne" ${valType==='Panne'?'selected':''}>Panne</option>
+                            <option value="Contrôle Technique" ${valType==='Contrôle Technique'?'selected':''}>Contrôle Technique</option>
+                            <option value="Autre" ${valType==='Autre'?'selected':''}>Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Date</label><input type="date" id="ev-date" class="form-control" value="${valDate}"></div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>Heure Début</label><input type="time" id="ev-start" class="form-control" value="${valStart}"></div>
+                    <div class="form-group"><label>Heure Fin</label><input type="time" id="ev-end" class="form-control" value="${valEnd}"></div>
+                </div>
+                <div class="form-group"><label>Compteur (au moment de l'intervention)</label>
+                    <input type="number" id="ev-mileage" class="form-control" value="${valMileage}">
+                </div>
+                <div class="form-group"><label>Description / Commentaire</label><textarea id="ev-desc" class="form-control" rows="2">${valDesc}</textarea></div>
+                
+                <div class="card" style="background:#f8f9fa; padding:15px; margin-bottom:20px;">
+                    <label style="font-weight:700; font-size:0.9rem;">Consommations (Optionnel)</label>
+                    <div class="form-grid" style="margin-top:10px;">
+                        <div class="form-group"><label>Huile Moteur (L)</label><input type="number" id="ev-oil-eng" class="form-control" step="0.1" value="${valOilEng}"></div>
+                        <div class="form-group"><label>Huile Hyd (L)</label><input type="number" id="ev-oil-hyd" class="form-control" step="0.1" value="${valOilHyd}"></div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" onclick="saveEvent('${id}')" style="width:100%;">Enregistrer l'événement</button>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function deleteEvent(equipId, eventId) {
+            if(confirm("Supprimer cette intervention ?")) {
+                db.ref('equipment/'+equipId+'/events/'+eventId).remove();
+                openEquipDetails(equipId);
+            }
+        }
+
+        function saveEvent(equipId) {
+            const start = document.getElementById('ev-start').value;
+            const end = document.getElementById('ev-end').value;
+            let duration = 0;
+            if(start && end) {
+                const [h1, m1] = start.split(':').map(Number);
+                const [h2, m2] = end.split(':').map(Number);
+                duration = (h2 * 60 + m2) - (h1 * 60 + m1);
+            }
+
+            const newMileage = parseInt(document.getElementById('ev-mileage').value);
+            const isEdit = document.getElementById('ev-edit-mode').value === 'true';
+            
+            const eventData = {
+                name: document.getElementById('ev-name').value,
+                type: document.getElementById('ev-type').value,
+                date: document.getElementById('ev-date').value,
+                startTime: start,
+                endTime: end,
+                duration: duration,
+                mileageAtIntervention: newMileage,
+                description: document.getElementById('ev-desc').value,
+                oilAdded: {
+                    engine: document.getElementById('ev-oil-eng').value || 0,
+                    hyd: document.getElementById('ev-oil-hyd').value || 0
+                },
+                agent: currentUser
+            };
+
+            if(!eventData.name) return alert("Nom requis");
+
+            let promise;
+            if(isEdit && currentEventId) {
+                promise = db.ref('equipment/'+equipId+'/events/'+currentEventId).update(eventData);
+            } else {
+                promise = db.ref('equipment/'+equipId+'/events').push(eventData);
+            }
+
+            promise.then(() => {
+                if(newMileage) {
+                    db.ref('equipment/'+equipId+'/currentMileage').set(newMileage);
+                }
+
+                if(duration > 0) {
+                    const historyEntry = {
+                        task: `Maintenance : ${eventData.type} sur ${equipId}`,
+                        location: 'Parc / Atelier',
+                        date: eventData.date,
+                        startTime: start,
+                        endTime: end,
+                        duration: duration,
+                        observations: eventData.description,
+                        user: currentUser
+                    };
+                    db.ref('history').push(historyEntry);
+
+                    const taskEntry = {
+                        title: `Maintenance: ${eventData.type}`,
+                        date: eventData.date,
+                        desc: `Sur matériel ID: ${equipId}`,
+                        type: 'maintenance',
+                        status: 'done', 
+                        assignedTo: currentUser,
+                        assignedBy: currentUser,
+                        startTime: start,
+                        endTime: end,
+                        observations: eventData.description
+                    };
+                    db.ref('tasks').push(taskEntry);
+                }
+
+                closeModal();
+                openEquipDetails(equipId);
+            });
+        }
+
+        /* --- DOCUMENTS --- */
+        function openAddDocModal(id) {
+            document.getElementById('modal-title').innerText = "Ajouter un document";
+            document.getElementById('modal-body').innerHTML = `
+                <div class="form-group"><label>Nom du document</label><input id="doc-name" class="form-control" placeholder="Facture EDF 09/23"></div>
+                <div class="form-group"><label>Fichier (Max 500KB)</label><input id="doc-file" type="file" class="form-control"></div>
+                <button class="btn btn-primary" onclick="saveDoc('${id}')">Ajouter</button>
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function saveDoc(id) {
+            const name = document.getElementById('doc-name').value;
+            const fileInput = document.getElementById('doc-file');
+            
+            if(!name || fileInput.files.length === 0) return alert("Nom et fichier requis");
+
+            const file = fileInput.files[0];
+            if(file.size > 500 * 1024) return alert("Fichier trop lourd");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                db.ref('equipment/'+id+'/documents').push({ name: name, data: base64 }).then(() => {
+                    closeModal();
+                    openEquipDetails(id);
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function deleteDoc(equipId, docId) {
+            if(confirm("Supprimer ce document ?")) {
+                db.ref('equipment/'+equipId+'/documents/'+docId).remove();
+                openEquipDetails(equipId);
+            }
+        }
+
+        function deleteEquip(id) {
+            if(confirm("Confirmer la suppression définitive ?")) {
+                db.ref('equipment/'+id).remove();
+                closeModal();
+            }
+        }
+
+        /* --- EXPORT FICHE PRO PDF --- */
+        function exportEquipProSheet(id) {
+            db.ref('equipment/'+id).once('value', snap => {
+                const e = snap.val();
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const margin = 15;
+                let y = 15;
+
+                doc.setFontSize(20);
+                doc.setTextColor(44, 62, 80);
+                doc.text("FICHE MATERIEL", pageWidth / 2, y, { align: 'center' });
+                y += 10;
+
+                doc.setFontSize(16);
+                doc.setTextColor(0, 184, 148);
+                doc.text(e.name, pageWidth / 2, y, { align: 'center' });
+                y += 15;
+
+                doc.setFontSize(10);
+                doc.setTextColor(0, 0, 0);
+                
+                if(e.photo && e.photo.startsWith('http')) {
+                    try {
+                        doc.addImage(e.photo, 'JPEG', pageWidth - 50, y, 35, 35);
+                    } catch(err) {}
+                }
+
+                const infoX = margin;
+                const infoY = y;
+                const lineHeight = 7;
+                
+                const fields = [
+                    { l: "Immatriculation", v: e.plate || '-' },
+                    { l: "Marque / Modèle", v: `${e.brand || ''} ${e.model || ''}` },
+                    { l: "Année", v: e.year || '-' },
+                    { l: "Type", v: e.type || '-' },
+                    { l: "Carburant", v: e.fuel || '-' },
+                    { l: "Compteur Actuel", v: `${e.currentMileage || 0} ${e.unitType==='h'?'h':'km'}` },
+                    { l: "Huile Moteur", v: e.oilEngine || '-' },
+                    { l: "Huile Hydraulique", v: e.oilHyd || '-' },
+                    { l: "Pneus", v: e.tires || '-' },
+                    { l: "Localisation", v: e.location || '-' }
+                ];
+
+                let currentY = infoY;
+                fields.forEach(f => {
+                    if(f.v && f.v !== '-') {
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`${f.l}:`, infoX, currentY);
+                        doc.setFont(undefined, 'normal');
+                        doc.text(f.v, infoX + 50, currentY);
+                        currentY += lineHeight;
+                    }
+                });
+
+                y = Math.max(currentY, y + 40) + 10;
+
+                doc.setFontSize(14);
+                doc.setFont(undefined, 'bold');
+                doc.text("HISTORIQUE DE MAINTENANCE", margin, y);
+                y += 10;
+
+                const events = e.events || {};
+                const eventRows = [];
+                
+                Object.keys(events).forEach(k => {
+                    const ev = events[k];
+                    eventRows.push([
+                        ev.date,
+                        ev.type,
+                        ev.name,
+                        ev.mileageAtIntervention ? `${ev.mileageAtIntervention} ${e.unitType==='h'?'h':'km'}` : '-',
+                        ev.duration ? `${ev.duration} min` : '-',
+                        ev.agent
+                    ]);
+                });
+                
+                eventRows.reverse();
+
+                if(eventRows.length > 0) {
+                    doc.autoTable({
+                        head: [['Date', 'Type', 'Nom', 'Compteur', 'Durée', 'Agent']],
+                        body: eventRows,
+                        startY: y,
+                        styles: { fontSize: 9 },
+                        headStyles: { fillColor: [44, 62, 80] }
+                    });
+                } else {
+                    doc.text("Aucun historique.", margin, y);
+                }
+
+                doc.save(`Fiche_${e.name.replace(/\s+/g, '_')}.pdf`);
+            });
+        }
+
+        /* --- MODULE 4: DISCUSSION & OBSERVATIONS --- */
+        function initDiscussion() {
+            loadChat();
+        }
+
+        function switchDiscTab(tab, btn) {
+            document.querySelectorAll('.disc-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            if(tab === 'chat') {
+                document.getElementById('view-chat').style.display = 'block';
+                document.getElementById('view-obs').style.display = 'none';
+                const container = document.getElementById('chat-messages');
+                container.scrollTop = container.scrollHeight;
+            } else {
+                document.getElementById('view-chat').style.display = 'none';
+                document.getElementById('view-obs').style.display = 'block';
+                loadObservations();
+            }
+        }
+
+        function loadChat() {
+            db.ref('messages').orderByChild('timestamp').limitToLast(50).on('value', snap => {
+                const msgs = snap.val() || {};
+                const container = document.getElementById('chat-messages');
+                container.innerHTML = '';
+                
+                Object.keys(msgs).forEach(k => {
+                    const m = msgs[k];
+                    const div = document.createElement('div');
+                    const isMine = m.sender === currentUser;
+                    div.className = `message ${isMine ? 'mine' : 'others'}`;
+                    
+                    const senderName = m.senderName || m.sender;
+                    
+                    div.innerHTML = `
+                        ${!isMine ? `<span class="msg-sender">${senderName}</span>` : ''}
+                        ${m.text}
+                        <span class="msg-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    `;
+                    container.appendChild(div);
+                });
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            db.ref('messages').push({
+                sender: currentUser,
+                senderName: currentUserData ? currentUserData.name : 'Moi',
+                text: text,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            input.value = '';
+        }
+
+        /* --- OBSERVATIONS FORM --- */
+        function openObsModal(id = null) {
+            currentObsId = id;
+            const today = new Date().toISOString().split('T')[0];
+            const userName = currentUserData ? currentUserData.name : 'Utilisateur';
+            
+            if(id) {
+                db.ref('observations/'+id).once('value', s => {
+                    const o = s.val();
+                    renderObsForm(o, userName, today);
+                });
+            } else {
+                renderObsForm({
+                    status: 'demande',
+                    location: '',
+                    description: '',
+                    photo: '',
+                    comments: ''
+                }, userName, today);
+            }
+        }
+
+        function renderObsForm(data, userName, today) {
+            const isMaire = currentUserData && currentUserData.role === 'admin';
+            const isEdit = !!currentObsId;
+
+            let title = isEdit ? "Détails du Signalement" : "Nouveau Signalement";
+            if(!isEdit && isMaire) title = "Signalement (Maire)";
+
+            const userField = isEdit 
+                ? `<div class="form-group"><label>Signalé par</label><input type="text" class="form-control" value="${data.userName || ''}" disabled></div>` 
+                : `<div class="form-group"><label>Signalé par</label><input type="text" class="form-control" value="${userName}" disabled></div>`;
+
+            let photoHtml = '';
+            if(data.photo) {
+                photoHtml = `<div style="margin-bottom:10px;"><img src="${data.photo}" style="max-width:100%; max-height:200px; border-radius:8px;"></div>`;
+            }
+
+            let mayorActions = '';
+            if(isMaire) {
+                mayorActions = `
+                    <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
+                    <h4>Administration</h4>
+                    <div class="form-group">
+                        <label>Statut</label>
+                        <select id="obs-status" class="form-control">
+                            <option value="demande" ${data.status==='demande'?'selected':''}>Demandé</option>
+                            <option value="cours" ${data.status==='cours'?'selected':''}>En cours de traitement</option>
+                            <option value="traite" ${data.status==='traite'?'selected':''}>Traité</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Commentaires Mairie</label>
+                        <textarea id="obs-comments" class="form-control" rows="3">${data.comments || ''}</textarea>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button class="btn btn-success btn-sm" onclick="convertObsToTask()"><i class="fas fa-calendar-plus"></i> Ajouter à l'Agenda</button>
+                    </div>
+                `;
+            } else if (data.comments) {
+                 mayorActions = `
+                    <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
+                    <div style="background:#f8f9fa; padding:10px; border-radius:8px;">
+                        <strong><i class="fas fa-bullhorn"></i> Réponse Mairie :</strong>
+                        <p style="margin:5px 0;">${data.comments}</p>
+                    </div>
+                 `;
+            }
+
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerHTML = `
+                <input type="hidden" id="obs-id" value="${currentObsId || ''}">
+                <div class="form-grid">
+                    <div class="form-group">${userField}</div>
+                    <div class="form-group"><label>Date</label><input type="date" id="obs-date" class="form-control" value="${data.date || today}" ${isEdit?'disabled':''}></div>
+                </div>
+                
+                <div class="form-group"><label>Lieu</label><input id="obs-loc" class="form-control" value="${data.location || ''}" ${isEdit && !isMaire?'disabled':''}></div>
+                <div class="form-group"><label>Description</label><textarea id="obs-desc" class="form-control" rows="3" ${isEdit && !isMaire?'disabled':''}>${data.description || ''}</textarea></div>
+                
+                <div class="form-group">
+                    <label>Photo</label>
+                    ${photoHtml}
+                    ${(!isEdit || isMaire) ? `<input type="file" id="obs-file" class="form-control" accept="image/*">` : ''}
+                </div>
+
+                ${mayorActions}
+
+                <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
+                ${(!isEdit || isMaire) ? `<button class="btn btn-primary" onclick="saveObservation()" style="width:100%">Enregistrer</button>` : ''}
+            `;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxSize = 1024;
+
+                    if (width > height) {
+                        if (width > maxSize) {
+                            height *= maxSize / width;
+                            width = maxSize;
+                        }
+                    } else {
+                        if (height > maxSize) {
+                            width *= maxSize / height;
+                            height = maxSize;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.7));
+                }
+            }
+        }
+
+        function saveObservation() {
+            const id = document.getElementById('obs-id').value;
+            const loc = document.getElementById('obs-loc').value;
+            const desc = document.getElementById('obs-desc').value;
+            const date = document.getElementById('obs-date').value;
+            const fileInput = document.getElementById('obs-file');
+            const isMaire = currentUserData && currentUserData.role === 'admin';
+
+            if(!loc || !desc) return alert("Veuillez remplir le lieu et la description.");
+
+            const saveData = (photoData) => {
+                const data = {
+                    location: loc,
+                    description: desc,
+                    date: date,
+                    status: isMaire ? document.getElementById('obs-status').value : 'demande',
+                    comments: isMaire ? document.getElementById('obs-comments').value : '',
+                    photo: photoData || ''
+                };
+
+                if(id) {
+                    db.ref('observations/'+id).update(data);
+                } else {
+                    data.userId = currentUser;
+                    data.userName = currentUserData ? currentUserData.name : 'Inconnu';
+                    data.timestamp = firebase.database.ServerValue.TIMESTAMP;
+                    db.ref('observations').push(data);
+                }
+                closeModal();
+                loadObservations();
+                loadObsHistory();
+            };
+
+            if(fileInput.files.length > 0) {
+                compressImage(fileInput.files[0], saveData);
+            } else {
+                if(id) {
+                    db.ref('observations/'+id).once('value', s => {
+                        saveData(s.val().photo);
+                    });
+                } else {
+                    saveData(null);
+                }
+            }
+        }
+
+        function loadObservations() {
+            // Load only active ones (demande, cours)
+            db.ref('observations').orderByChild('timestamp').limitToLast(20).once('value', snap => {
+                const list = snap.val() || {};
+                const container = document.getElementById('obs-list-container');
+                container.innerHTML = '';
+                
+                Object.keys(list).reverse().forEach(k => {
+                    const o = list[k];
+                    if(o.status === 'traite') return; // Skip treated ones in main list
+                    
+                    let statusBadge = '<span class="obs-status" style="background:#eee;">Demandé</span>';
+                    if(o.status === 'cours') statusBadge = '<span class="obs-status" style="background:#fdcb6e; color:#333;">En cours</span>';
+
+                    const thumb = o.photo ? `<img src="${o.photo}" class="obs-img-thumb" onclick="viewPhoto('${o.photo}')">` : '';
+
+                    const div = document.createElement('div');
+                    div.className = `obs-card status-${o.status || 'demande'}`;
+                    div.innerHTML = `
+                        <div class="obs-header">
+                            <strong>${o.location}</strong>
+                            ${statusBadge}
+                        </div>
+                        <div style="font-size:0.9rem;">${o.description}</div>
+                        ${thumb}
+                        <div class="obs-meta">
+                            <span><i class="far fa-user"></i> ${o.userName}</span>
+                            <span><i class="far fa-calendar"></i> ${o.date}</span>
+                        </div>
+                        <button class="btn btn-light btn-sm" onclick="openObsModal('${k}')" style="margin-top:10px;">Voir détails</button>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+        }
+
+        function toggleObsHistory() {
+            const container = document.getElementById('obs-history-container');
+            const btn = document.querySelector('.btn[onclick="toggleObsHistory()"]');
+            
+            if(container.style.display === 'none') {
+                container.style.display = 'grid';
+                loadObsHistory();
+                btn.innerHTML = '<i class="fas fa-chevron-up"></i> Masquer l\'historique';
+            } else {
+                container.style.display = 'none';
+                btn.innerHTML = '<i class="fas fa-history"></i> Voir l\'historique (Traité)';
+            }
+        }
+
+        function loadObsHistory() {
+            // Load only treated ones
+            db.ref('observations').orderByChild('timestamp').limitToLast(20).once('value', snap => {
+                const list = snap.val() || {};
+                const container = document.getElementById('obs-history-container');
+                container.innerHTML = '<h3 style="grid-column: 1/-1; margin-bottom:15px; color:var(--text-sec);">Historique des signalements traités</h3>';
+                
+                Object.keys(list).reverse().forEach(k => {
+                    const o = list[k];
+                    if(o.status !== 'traite') return;
+
+                    const thumb = o.photo ? `<img src="${o.photo}" class="obs-img-thumb" onclick="viewPhoto('${o.photo}')">` : '';
+
+                    const div = document.createElement('div');
+                    div.className = `obs-card status-${o.status}`;
+                    div.innerHTML = `
+                        <div class="obs-header">
+                            <strong>${o.location}</strong>
+                            <span class="obs-status" style="background:#00b894; color:white;">Traité</span>
+                        </div>
+                        <div style="font-size:0.9rem;">${o.description}</div>
+                        ${thumb}
+                        ${o.comments ? `<div style="background:#e6fffa; padding:5px; font-size:0.8rem; border-radius:4px; margin-top:5px;"><strong>Note :</strong> ${o.comments}</div>` : ''}
+                        <div class="obs-meta">
+                            <span><i class="far fa-user"></i> ${o.userName}</span>
+                            <span><i class="far fa-calendar"></i> ${o.date}</span>
+                        </div>
+                        <button class="btn btn-light btn-sm" onclick="openObsModal('${k}')" style="margin-top:10px;">Voir détails</button>
+                    `;
+                    container.appendChild(div);
+                });
+            });
+        }
+
+        function viewPhoto(src) {
+            const w = window.open("");
+            w.document.write(`<img src="${src}" style="max-width:100%">`);
+        }
+
+        function convertObsToTask() {
+            if(!currentObsId) return;
+            db.ref('observations/'+currentObsId).once('value', s => {
+                const o = s.val();
+                closeModal();
+                openTaskModal(null); 
+                setTimeout(() => {
+                    document.getElementById('t-title').value = `Signalement: ${o.location}`;
+                    document.getElementById('t-desc').value = o.description;
+                    document.getElementById('t-loc').value = o.location;
+                    document.getElementById('t-loc-group').style.display = 'block';
+                    document.getElementById('t-zone').value = ""; 
+                }, 500);
+            });
+        }
+
+        /* --- MODULE 5: HISTORIQUE --- */
+        function loadHistory() {
+            db.ref('history').limitToLast(100).on('value', snap => {
+                const h = snap.val() || {};
+                const rows = Object.entries(h).reverse().map(([key, i]) => {
+                    let loc = i.location || '-';
+                    if(loc.includes('Zone ID:')) {
+                        const zid = loc.split('Zone ID: ')[1];
+                        if(allZones[zid]) loc = allZones[zid].name;
+                    }
+
+                    return `<tr>
+                        <td style="padding:12px;">${i.date}</td>
+                        <td style="padding:12px;">${i.task || i.action}</td>
+                        <td style="padding:12px;">${i.user}</td>
+                        <td style="padding:12px;">${i.observations || loc}</td>
+                        <td style="padding:12px;"><button class="btn btn-danger btn-sm" onclick="deleteHistory('${key}')"><i class="fas fa-trash"></i></button></td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('history-list').innerHTML = rows;
+            });
+        }
+
+        function deleteHistory(key) {
+            if(confirm("Supprimer cet historique ?")) {
+                db.ref('history/'+key).once('value', s => {
+                    const item = s.val();
+                    const loc = item.location || '';
+                    
+                    if(loc.includes('Zone ID:')) {
+                        const zid = loc.split('Zone ID: ')[1];
+                        recalculateZoneStatus(zid);
+                    }
+
+                    db.ref('history/'+key).remove();
+                });
+            }
+        }
+
+        function recalculateZoneStatus(zoneId) {
+            db.ref('history').once('value', snap => {
+                const all = snap.val() || {};
+                let latestDate = null;
+                let latestUser = null;
+
+                Object.keys(all).forEach(k => {
+                    const h = all[k];
+                    const loc = h.location || '';
+                    if(loc.includes(`Zone ID: ${zoneId}`)) {
+                        if(!latestDate || new Date(h.date) > new Date(latestDate)) {
+                            latestDate = h.date;
+                            latestUser = h.user;
+                        }
+                    }
+                });
+
+                if(latestDate) {
+                    db.ref('zones/'+zoneId).update({
+                        lastMowed: latestDate,
+                        history: { 
+                            latest: { date: latestDate, user: latestUser }
+                        }
+                    });
+                } else {
+                    db.ref('zones/'+zoneId).update({ lastMowed: null });
+                }
+                loadZones(); 
+            });
+        }
+
+        function loadSchoolHistory() {
+            db.ref('history_ecole').limitToLast(50).on('value', snap => {
+                const h = snap.val() || {};
+                if (Object.keys(h).length === 0) {
+                    document.getElementById('school-history-list').innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:#b2bec3;">Aucune action enregistrée à l'école.</td></tr>`;
+                } else {
+                    const rows = Object.entries(h).reverse().map(([key, i]) => `
+                        <tr>
+                            <td style="padding:12px;">${i.date}</td>
+                            <td style="padding:12px;">${i.task || i.action}</td>
+                            <td style="padding:12px;">${i.user}</td>
+                            <td style="padding:12px;">${i.observations || '-'}</td>
+                            <td style="padding:12px;"><button class="btn btn-danger btn-sm" onclick="deleteSchoolHistory('${key}')"><i class="fas fa-trash"></i></button></td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('school-history-list').innerHTML = rows;
+                }
+            });
+        }
+
+        function deleteSchoolHistory(key) {
+            if(confirm("Supprimer cet historique ?")) {
+                db.ref('history_ecole/'+key).remove();
+            }
+        }
+
+        function exportPDF(period) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const periodLabels = { 'week': 'Semaine', 'month': 'Mois', 'year': 'Année complète' };
+            doc.text("Rapport d'Activités - Moncey", 10, 10);
+            doc.text(`Période : ${periodLabels[period] || period}`, 10, 20);
+
+            db.ref('history').once('value', snap => {
+                const data = snap.val();
+                if(!data) { alert("Aucune donnée"); return; }
+                
+                const all = Object.values(data).reverse();
+                
+                const now = new Date();
+                // FIX: Strict checks and sanitation
+                const tableBody = all.filter(d => {
+                    if (!d.date || typeof d.date !== 'string') return false;
+                    const parts = d.date.split('-');
+                    if(parts.length !== 3) return false;
+                    const dDate = new Date(parts[0], parts[1]-1, parts[2]); 
+
+                    if(period === 'year') return dDate.getFullYear() === now.getFullYear();
+                    if(period === 'month') return dDate.getMonth() === now.getMonth() && dDate.getFullYear() === now.getFullYear();
+                    if(period === 'week') {
+                        const weekStart = new Date(now);
+                        weekStart.setDate(now.getDate() - now.getDay());
+                        weekStart.setHours(0,0,0,0);
+                        return dDate >= weekStart;
+                    }
+                    return true;
+                }).map(d => {
+                     let loc = d.location || '-';
+                    if(loc.includes('Zone ID:')) {
+                        const zid = loc.split('Zone ID: ')[1];
+                        if(allZones[zid]) loc = allZones[zid].name;
+                    }
+                    return [
+                        (d.date || '') + ' ' + (d.startTime || ''),
+                        d.task || d.action || '-',
+                        loc,
+                        d.duration ? d.duration + ' min' : '-',
+                        d.user || '-'
+                    ];
+                });
+
+                if(tableBody.length === 0) {
+                    alert("Aucune donnée pour cette période.");
+                    return;
+                }
+
+                try {
+                    doc.autoTable({
+                        head: [['Date', 'Tâche', 'Lieu', 'Durée', 'Employé']],
+                        body: tableBody,
+                        startY: 30,
+                        styles: { fontSize: 10 },
+                        headStyles: { fillColor: [44, 62, 80] },
+                        didDrawPage: function (data) {
+                            if(data.pageCount === 1) {
+                                const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 30;
+                                const totalMins = tableBody.reduce((acc, curr) => acc + (parseInt(curr[3])||0), 0);
+                                const totalStr = formatMinutes(totalMins);
+                                if (typeof finalY === 'number') {
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text(`Total Heures : ${totalStr}`, 10, finalY + 10);
+                                }
+                            }
+                        }
+                    });
+                    doc.save(`rapport_moncey_${period}.pdf`);
+                } catch (err) {
+                    console.error(err);
+                    alert("Erreur lors de la génération du PDF: " + err.message);
+                }
+            });
+        }
+
+        function exportSchoolPDF(period) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const periodLabels = { 'week': 'Semaine', 'month': 'Mois', 'year': 'Année complète' };
+            doc.text("Rapport École - Moncey", 10, 10);
+            doc.text(`Période : ${periodLabels[period] || period}`, 10, 20);
+
+            db.ref('history_ecole').once('value', snap => {
+                const data = snap.val();
+                if(!data) { alert("Aucune donnée"); return; }
+
+                const all = Object.values(data).reverse();
+                
+                 const now = new Date();
+                const tableBody = all.filter(d => {
+                    if (!d.date || typeof d.date !== 'string') return false;
+                    const parts = d.date.split('-');
+                    if(parts.length !== 3) return false;
+                    const dDate = new Date(parts[0], parts[1]-1, parts[2]); 
+
+                    if(period === 'year') return dDate.getFullYear() === now.getFullYear();
+                    if(period === 'month') return dDate.getMonth() === now.getMonth() && dDate.getFullYear() === now.getFullYear();
+                    if(period === 'week') {
+                        const weekStart = new Date(now);
+                        weekStart.setDate(now.getDate() - now.getDay());
+                        weekStart.setHours(0,0,0,0);
+                        return dDate >= weekStart;
+                    }
+                    return true;
+                }).map(d => [
+                    (d.date || '') + ' ' + (d.startTime || ''),
+                    d.task || d.action || '-',
+                    d.location || '-',
+                    d.duration ? d.duration + ' min' : '-',
+                    d.user || '-'
+                ]);
+
+                if(tableBody.length === 0) {
+                    alert("Aucune donnée pour cette période.");
+                    return;
+                }
+
+                try {
+                    doc.autoTable({
+                        head: [['Date', 'Tâche', 'Lieu', 'Durée', 'Employé']],
+                        body: tableBody,
+                        startY: 30,
+                        styles: { fontSize: 10 },
+                        headStyles: { fillColor: [39, 174, 96] },
+                        didDrawPage: function (data) {
+                             if(data.pageCount === 1) {
+                                const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 30;
+                                const totalMins = tableBody.reduce((acc, curr) => acc + (parseInt(curr[3])||0), 0);
+                                const totalStr = formatMinutes(totalMins);
+                                if (typeof finalY === 'number') {
+                                    doc.setFont(undefined, 'bold');
+                                    doc.text(`Total Heures : ${totalStr}`, 10, finalY + 10);
+                                }
+                             }
+                        }
+                    });
+                    doc.save(`rapport_ecole_moncey_${period}.pdf`);
+                } catch (err) {
+                    console.error(err);
+                    alert("Erreur lors de la génération du PDF: " + err.message);
+                }
+            });
+        }
+
+        function formatMinutes(mins) {
+            if(!mins) return "0h 00";
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return `${h}h ${m < 10 ? '0'+m : m}`;
+        }
+
+        /* --- PARAMÈTRES --- */
+        function changePassword() {
+            const newPass = document.getElementById('new-pass').value;
+            if(!newPass) return alert("Mot de passe requis");
+            db.ref('users/'+currentUser+'/pass').set(newPass, (err) => {
+                if(!err) alert("Mot de passe modifié !");
+            });
+        }
+
+        function addUser() {
+            const name = document.getElementById('add-user-name').value.trim();
+            const pass = document.getElementById('add-user-pass').value;
+            const role = document.getElementById('add-user-role').value;
+            if(!name || !pass) return alert("Champs incomplets");
+            db.ref('users/'+name).set({ name: name, pass: pass, role: role }, (err) => {
+                if(!err) { alert("Utilisateur ajouté"); loadUsersList(); }
+            });
+        }
+
+        function loadUsersList() {
+            db.ref('users').once('value', snap => {
+                const users = snap.val();
+                const list = document.getElementById('users-list');
+                list.innerHTML = '';
+                Object.keys(users).forEach(key => {
+                    const u = users[key];
+                    list.innerHTML += `<li style="padding:8px; border-bottom:1px solid #eee; display:flex; justify-content:space-between;">
+                        <span>${u.name}</span> <span style="background:#f1f2f6; padding:2px 6px; border-radius:4px; font-size:0.8rem;">${u.role}</span>
+                    </li>`;
+                });
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        /* INIT */
+        window.onload = function() {
+            initAuth();
+        };
+
+    </script>
+</body>
+</html>
